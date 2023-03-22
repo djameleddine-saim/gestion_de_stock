@@ -56,7 +56,7 @@ CREATE TABLE `produit` (
   PRIMARY KEY (`id`),
   KEY `id_categorie` (`id_categorie`),
   CONSTRAINT `produit_ibfk_1` FOREIGN KEY (`id_categorie`) REFERENCES `categorie` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -65,7 +65,7 @@ CREATE TABLE `produit` (
 
 LOCK TABLES `produit` WRITE;
 /*!40000 ALTER TABLE `produit` DISABLE KEYS */;
-INSERT INTO `produit` VALUES (1,'T-shirt famme','T-shirt blanc en coton bio',19,10,1),(2,'T-shirt homme','T-shirt blanc en coton bio',20,50,2),(3,'iphone14','Appel iphone14',1200,100,3);
+INSERT INTO `produit` VALUES (1,'T-shirt famme','T-shirt blanc en coton bio',19,15,1),(2,'T-shirt homme','T-shirt blanc en coton bio',20,50,2),(3,'iphone14','Appel iphone14',1200,100,3),(4,'TN','nike air max plus',200,12,4),(5,'robe de soirée','robe de soirée',100,12,1),(6,'Sandales','Sandales de plage à semelle épaisse pour homme et femme',120,345,4),(7,'manteau',' manteau d\'hiver à capuche pour homme',45,50,2);
 /*!40000 ALTER TABLE `produit` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -78,4 +78,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2023-03-21 16:30:10
+-- Dump completed on 2023-03-22 17:18:08

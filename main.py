@@ -1,201 +1,337 @@
-import tkinter as tk
-from tkinter import ttk
 import mysql.connector
+from mysql.connector import Error
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
 import csv
 
-boutique = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="123",
-    database="Boutique"
-)
+def create_connexion():
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="123",
+            database="boutique"
+        )
+        return conn
+    except Error as e:
+        print(f"Erreur: {e}")
+        return None
 
-cursor = boutique.cursor()
+def ajouter_produit(nom, description, prix, quantite, id_categorie):
+    conn = create_connexion()
+    cursor = conn.cursor()
+    query = "INSERT INTO produit (nom, description, prix, quantite, id_categorie) VALUES (%s, %s, %s, %s, %s)"
+    cursor.execute(query, (nom, description, prix, quantite, id_categorie))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
-class Boutique:
+def supprimer_produit(id):
+    conn = create_connexion()
+    cursor = conn.cursor()
+    query = "DELETE FROM produit WHERE id=%s"
+    cursor.execute(query, (id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
+def modifier_produit(id, nom, description, prix, quantite, id_categorie):
+    conn = create_connexion()
+    cursor = conn.cursor()
+    query = "UPDATE produit SET nom=%s, description=%s, prix=%s, quantite=%s, id_categorie=%s WHERE id=%s"
+    cursor.execute(query, (nom, description, prix, quantite, id_categorie, id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def recuperer_produits():
+    conn = create_connexion()
+    cursor = conn.cursor()
+    query = "SELECT * FROM produit"
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+def recuperer_categories():
+    conn = create_connexion()
+    cursor = conn.cursor()
+    query = "SELECT * FROM categorie"
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+class GestionStockApp(tk.Tk):
     def __init__(self):
+        super().__init__()
+        self.title("Gestion de stock")
+        self.geometry("1000x500")
+        self.resizable(False, False)
+        self.iconbitmap("ico.ico")
+        self.creer_widgets()
 
-        self.Windows = tk.Tk()
-        self.Windows.title("Gestion des stocks")
-        self.Windows.geometry("800x500")
-        self.Windows.resizable(False, False)
-        self.Windows.iconbitmap("ico.ico")
-        self.interface()
+    def creer_widgets(self):
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(pady=10)
 
-    def actualiser(self):
-        self.tree.delete(*self.tree.get_children())
-        for produit in self.liste_produits():
-            self.tree.insert("", "end", text=produit[0], values=(produit[1], produit[2], produit[3], produit[4], self.nom_categorie(produit[5])))
-        
-        self.category_cbox = ttk.Combobox(self.Windows, values=self.liste_categories())
+        self.frame_produits = ttk.Frame(self.notebook)
+        self.frame_ajout = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_produits, text='Produits')
+        self.notebook.add(self.frame_ajout, text='Ajouter un produit')
 
-    def filter_categories(self):
-        self.tree.delete(*self.tree.get_children())
-        self.info_label.config(text="Aucun produit ne correspond", fg="red")
-        for produit in self.liste_produits():
-            if self.nom_categorie(produit[5]) == self.category_cbox.get():
-                self.tree.insert("", "end", text=produit[0], values=(produit[1], produit[2], produit[3], produit[4], self.nom_categorie(produit[5])))
-                self.info_label.config(text="Filre appliqué", fg="green")
+        self.tree = ttk.Treeview(self.frame_produits, columns=("ID", "Nom", "Description", "Prix", "Quantité", "ID Catégorie"))
+        self.tree.heading("ID", text="ID")
+        self.tree.heading("Nom", text="Nom")
+        self.tree.heading("Description", text="Description")
+        self.tree.heading("Prix", text="Prix")
+        self.tree.heading("Quantité", text="Quantité")
+        self.tree.heading("ID Catégorie", text="ID Catégorie")
+        self.tree['show'] = 'headings'
+        self.tree.column("ID", width=50)
+        self.tree.column("Nom", width=200)
+        self.tree.column("Description", width=350)
+        self.tree.column("Prix", width=100)
+        self.tree.column("Quantité", width=100)
+        self.tree.column("ID Catégorie", width=100)
+        self.tree.pack(pady=20)
 
-    def reinitialiser_les_filtres(self):
-        self.actualiser()
-        self.info_label.config(text="Filtre réinitialisé", fg="green")
-    def check_produit(self):
-        
-        self.nom = self.name_entry.get()
-        self.description = self.description_entry.get()
-        self.prix = self.price_entry.get()
-        self.quantite = self.quantity_entry.get()
-        self.categorie = self.category_cbox.get()
+        self.charger_produits()
 
-        if self.nom == "" or self.description == "" or self.prix == "" or self.quantite == "" or self.categorie == "":
-            self.info_label.config(text="Veuillez remplir tous les champs", fg="red")
-            return False
-        if not self.prix.isdigit():
-            self.info_label.config(text="Le prix doit être un nombre", fg="red")
-            return False
-        if not self.quantite.isdigit():
-            self.info_label.config(text="La quantité doit être un nombre", fg="red")
-            return False
-        if (self.categorie,) not in self.liste_categories():
-            self.ajouter_categorie()
-            self.info_label.config(text="La catégorie a été ajoutée", fg="green")
-        return True
-    
-    def check_selection(self):
+        self.btn_supprimer = ttk.Button(self.frame_produits, text="Supprimer produit", command=self.supprimer_produit)
+        self.btn_supprimer.pack(side="right", pady=10)
 
-        # Vérifier si un produit est sélectionné
+        self.btn_modifier = ttk.Button(self.frame_produits, text="Modifier produit", command=self.ouvrir_modifier_produit)
+        self.btn_modifier.pack(side="left", pady=10)
 
-        if self.tree.selection() == ():
-            self.info_label.config(text="Veuillez sélectionner un produit", fg="red")
-            return False
-        self.id = self.tree.item(self.tree.selection())["text"]
-        return True            
+        self.frame_categories = ttk.Frame(self.notebook)
+        self.notebook.add(self.frame_categories, text='Ajouter une catégories')
 
-    def ajouter_produit(self):
-        """
-        ajouter un produit dans la base de données et actualiser la liste
-        """
-        if self.check_produit():
-            query = "INSERT INTO produit (nom, description, prix, quantite, id_categorie) VALUES (%s, %s, %s, %s, %s)"
-            values = (self.nom, self.description, self.prix, self.quantite, self.id_categorie(self.categorie))
-            cursor.execute(query, values)
-            boutique.commit()
-            self.actualiser()
-            self.info_label.config (text="Le produit a été ajouté avec succès", fg="green")
+        self.tree.pack(pady=10)
+
+        self.frame_controls = ttk.Frame(self.frame_produits)
+        self.frame_controls.pack(pady=10)
+
+        self.combo_filtrer = ttk.Combobox(self.frame_controls, values=["Toutes"] + [c[1] for c in recuperer_categories()], state="readonly")
+        self.combo_filtrer.set("Toutes")
+        self.combo_filtrer.bind("<<ComboboxSelected>>", self.filtrer_produits)
+        self.combo_filtrer.pack( padx=10)
+
+        self.btn_exporter_csv = ttk.Button(self.frame_controls, text="Exporter CSV", command=self.exporter_csv)
+        self.btn_exporter_csv.pack( padx=10)
+
+        self.lbl_nom = ttk.Label(self.frame_ajout, text="Nom")
+        self.lbl_description = ttk.Label(self.frame_ajout, text="Description")
+        self.lbl_prix = ttk.Label(self.frame_ajout, text="Prix")
+        self.lbl_quantite = ttk.Label(self.frame_ajout, text="Quantité")
+        self.lbl_categorie = ttk.Label(self.frame_ajout, text="Catégorie")
+
+        self.entry_nom = ttk.Entry(self.frame_ajout)
+        self.entry_description = ttk.Entry(self.frame_ajout)
+        self.entry_prix = ttk.Entry(self.frame_ajout)
+        self.entry_quantite = ttk.Entry(self.frame_ajout)
+        self.combo_categorie = ttk.Combobox(self.frame_ajout, values=[c[1] for c in recuperer_categories()], state="readonly")
+
+        self.lbl_nom.grid(row=0, column=0, padx=10, pady=10)
+        self.lbl_description.grid(row=1, column=0, padx=10, pady=10)
+        self.lbl_prix.grid(row=2, column=0, padx=10, pady=10)
+        self.lbl_quantite.grid(row=3, column=0, padx=10, pady=10)
+        self.lbl_categorie.grid(row=4, column=0, padx=10, pady=10)
+
+        self.entry_nom.grid(row=0, column=1, padx=10, pady=10)
+        self.entry_description.grid(row=1, column=1, padx=10, pady=10)
+        self.entry_prix.grid(row=2, column=1, padx=10, pady=10)
+        self.entry_quantite.grid(row=3, column=1, padx=10, pady=10)
+        self.combo_categorie.grid(row=4, column=1, padx=10, pady=10)
+
+        self.btn_ajouter = ttk.Button(self.frame_ajout, text="Ajouter produit", command=self.ajouter_nouveau_produit)
+        self.btn_ajouter.grid(row=5, column=0, columnspan=2, pady=20)
+
+        self.lbl_categorie_nom = ttk.Label(self.frame_categories, text="Nom de la catégorie")
+        self.entry_categorie_nom = ttk.Entry(self.frame_categories)
+        self.btn_ajouter_categorie = ttk.Button(self.frame_categories, text="Ajouter catégorie",
+                                                command=self.ajouter_nouvelle_categorie)
+
+        self.lbl_categorie_nom.pack(pady=10)
+        self.entry_categorie_nom.pack(pady=10)
+        self.btn_ajouter_categorie.pack(pady=10)
+
+    def charger_produits_par_categorie(self, id_categorie):
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+
+        produits = self.recuperer_produits_par_categorie(id_categorie)
+        for p in produits:
+            self.tree.insert('', 'end', values=p)
+
+    def filtrer_produits(self, event):
+        selected_categorie = self.combo_filtrer.get()
+        if selected_categorie == "Toutes":
+            self.charger_produits()
+        else:
+            id_categorie = [c[0] for c in recuperer_categories() if c[1] == selected_categorie][0]
+            self.charger_produits_par_categorie(id_categorie)
+
+    def recuperer_produits_par_categorie(self, id_categorie):
+        conn = create_connexion()
+        cursor = conn.cursor()
+        query = "SELECT * FROM produit WHERE id_categorie = %s"
+        cursor.execute(query, (id_categorie,))
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
+
+    def ajouter_nouveau_produit(self):
+        nom = self.entry_nom.get()
+        description = self.entry_description.get()
+        prix = self.entry_prix.get()
+        quantite = self.entry_quantite.get()
+        id_categorie = recuperer_categories()[self.combo_categorie.current()][0]
+
+        if nom and description and prix and quantite and id_categorie:
+            try:
+                ajouter_produit(nom, description, float(prix), int(quantite), id_categorie)
+                self.charger_produits()
+                self.entry_nom.delete(0, 'end')
+                self.entry_description.delete(0, 'end')
+                self.entry_prix.delete(0, 'end')
+                self.entry_quantite.delete(0, 'end')
+                self.combo_categorie.set('')
+            except ValueError:
+                messagebox.showerror("Erreur", "Veuillez entrer des valeurs valides pour le prix et la quantité")
+        else:
+            messagebox.showerror("Erreur", "Veuillez remplir tous les champs")
+
+    def ouvrir_modifier_produit(self):
+        selected_item = self.tree.selection()
+        if selected_item:
+            item = self.tree.item(selected_item)
+            id_produit = item["values"][0]
+            self.modifier_produit_dialogue = ModifierProduitDialogue(self, id_produit)
+        else:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un produit à modifier")
+
+    def ajouter_categorie(self,nom):
+        conn = create_connexion()
+        cursor = conn.cursor()
+        query = "INSERT INTO categorie (nom) VALUES (%s)"
+        cursor.execute(query, (nom,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+    def ajouter_nouvelle_categorie(self):
+        nom = self.entry_categorie_nom.get()
+        if nom:
+            self.ajouter_categorie(nom)  # Change this line
+            self.entry_categorie_nom.delete(0, 'end')
+            self.combo_categorie["values"] = [c[1] for c in recuperer_categories()]
+            self.combo_filtrer["values"] = ["Toutes"] + [c[1] for c in recuperer_categories()]
+        else:
+            messagebox.showerror("Erreur", "Veuillez entrer un nom de catégorie")
+
+    def charger_produits(self):
+        for i in self.tree.get_children():
+            self.tree.delete(i)
+
+        produits = recuperer_produits()
+        for p in produits:
+            self.tree.insert('', 'end', values=p)
 
     def supprimer_produit(self):
-        if self.check_selection():
-            cursor.execute("DELETE FROM produit WHERE id=%s", (self.id,))
-            boutique.commit()
-            self.actualiser()
-            self.info_label.config(text="Le produit a été supprimé", fg="green")
+        selected_item = self.tree.selection()
+        if selected_item:
+            item = self.tree.item(selected_item)
+            supprimer_produit(item["values"][0])
+            self.charger_produits()
+        else:
+            messagebox.showerror("Erreur", "Veuillez sélectionner un produit à supprimer")
 
-    def modifier_produit(self):     # Modifier un produit dans la base de données
-        if self.check_produit():
-            if self.check_selection():
+    def exporter_csv(self):
+        produits = recuperer_produits()
+        with open("produits.csv", mode="w", newline='', encoding='utf-8') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(["ID", "Nom", "Description", "Prix", "Quantité", "ID Catégorie"])
+            for p in produits:
+                csv_writer.writerow([p[0], p[1], p[2], f"{p[3]:.2f}", p[4], p[5]])
 
-                query = "UPDATE produit SET nom=%s, description=%s, prix=%s, quantite=%s, id_categorie=%s WHERE id=%s"
-                values = (self.nom, self.description, self.prix, self.quantite, self.id_categorie(self.categorie), self.id)
-                cursor.execute(query, values)
-                boutique.commit()
-                self.actualiser()
-                self.info_label.config(text="Le produit a été modifié", fg="green")
+        messagebox.showinfo("Succès", "Les produits ont été exportés avec succès dans le fichier produits.csv")
 
+class ModifierProduitDialogue(tk.Toplevel):
+    def __init__(self, parent, id_produit):
+        super().__init__(parent)
+        self.title("Modifier produit")
+        self.geometry("400x300")
+        self.parent = parent
+        self.id_produit = id_produit
+        self.creer_widgets()
 
-    def liste_categories(self):
-        cursor.execute("SELECT nom FROM categorie")
-        categorie = cursor.fetchall()
-        return categorie
-    
-    def nom_categorie(self, id):
-        cursor.execute("SELECT nom FROM categorie WHERE id=%s", (id,))
-        categorie = cursor.fetchone()
-        return categorie[0]
-    
-    def id_categorie(self, nom):
-        cursor.execute("SELECT id FROM categorie WHERE nom=%s", (nom,))
-        categorie = cursor.fetchone()
-        return categorie[0]
-    
-    def ajouter_categorie(self):
-        cursor.execute("INSERT INTO categorie (nom) VALUES (%s)", (self.categorie,))
-        boutique.commit()
+    def creer_widgets(self):
+        produit = [p for p in recuperer_produits() if p[0] == self.id_produit][0]
+        categories = recuperer_categories()
 
-    def liste_produits(self):
-        query = "SELECT * FROM produit"
-        cursor.execute(query)
-        produits = cursor.fetchall()
-        return produits
-    
-    def export_csv(self):
-        with open("produits.csv", "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow(["ID", "Nom", "Description", "Prix", "Quantite", "Categorie"])
+        self.lbl_nom = ttk.Label(self, text="Nom")
+        self.lbl_description = ttk.Label(self, text="Description")
+        self.lbl_prix = ttk.Label(self, text="Prix")
+        self.lbl_quantite = ttk.Label(self, text="Quantité")
+        self.lbl_categorie = ttk.Label(self, text="Catégorie")
 
-            for produit in self.liste_produits():
-                writer.writerow([produit[0], produit[1], produit[2], produit[3], produit[4], self.nom_categorie(produit[5])])
+        self.entry_nom = ttk.Entry(self)
+        self.entry_nom.insert(0, produit[1])
+        self.entry_description = ttk.Entry(self)
+        self.entry_description.insert(0, produit[2])
+        self.entry_prix = ttk.Entry(self)
+        self.entry_prix.insert(0, produit[3])
+        self.entry_quantite = ttk.Entry(self)
+        self.entry_quantite.insert(0, produit[4])
+        self.combo_categorie = ttk.Combobox(self, values=[c[1] for c in categories], state="readonly")
+        self.combo_categorie.set(categories[produit[5] - 1][1])
 
+        self.lbl_nom.grid(row=0, column=0, padx=10, pady=10)
+        self.lbl_description.grid(row=1, column=0, padx=10, pady=10)
+        self.lbl_prix.grid(row=2, column=0, padx=10, pady=10)
+        self.lbl_quantite.grid(row=3, column=0, padx=10, pady=10)
+        self.lbl_categorie.grid(row=4, column=0, padx=10, pady=10)
 
-        self.info_label.config(text="La liste des produits a été exportée avec succès", fg="green")
+        self.entry_nom.grid(row=0, column=1, padx=10, pady=10)
+        self.entry_description.grid(row=1, column=1, padx=10, pady=10)
+        self.entry_prix.grid(row=2, column=1, padx=10, pady=10)
+        self.entry_quantite.grid(row=3, column=1, padx=10, pady=10)
 
-    def interface(self):
-        self.tree = ttk.Treeview(self.Windows, columns=("Nom", "Description", "Prix", "Quantite", "Categorie"), show="headings")
-        self.tree.heading("#0", text="ID")
-        self.tree.column("#0", minwidth=0, width=30)
-        for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=145, anchor="center", minwidth=0)
+        self.entry_quantite.grid(row=3, column=1, padx=10, pady=10)
+        self.combo_categorie.grid(row=4, column=1, padx=10, pady=10)
 
-        self.actualiser()
+        self.btn_enregistrer = ttk.Button(self, text="Enregistrer modifications",
+                                          command=self.enregistrer_modifications)
+        self.btn_annuler = ttk.Button(self, text="Annuler", command=self.destroy)
 
-        self.tree.grid(row=0, column=0, columnspan=5, padx=20, pady=50)
-        self.info_label = tk.Label(self.Windows, text="", font=("Arial", 12))
-        self.info_label.grid(row=9, column=0, columnspan=5, sticky="NSEW", pady=5)
+        self.btn_enregistrer.grid(row=5, column=0, padx=10, pady=20)
+        self.btn_annuler.grid(row=5, column=1, padx=10, pady=20)
 
+    def enregistrer_modifications(self):
+        nom = self.entry_nom.get()
+        description = self.entry_description.get()
+        prix = self.entry_prix.get()
+        quantite = self.entry_quantite.get()
+        id_categorie = recuperer_categories()[self.combo_categorie.current()][0]
 
-
-        self.btn_ajouter = tk.Button(self.Windows, text="Ajouter produit", command=self.ajouter_produit,background="red", fg="white") # Création du bouton ajouter
-        self.btn_ajouter.grid(row=1, column=2, sticky="NSEW", padx=20)
-
-        self.btn_modifier = tk.Button(self.Windows, text="Modifier produit", command=self.modifier_produit,background="red", fg="white")
-        self.btn_modifier.grid(row=2, column=2, sticky="NSEW", padx=20)
-
-        self.btn_supprimer = tk.Button(self.Windows, text="Supprimer produit", command=self.supprimer_produit,background="red", fg="white")
-        self.btn_supprimer.grid(row=3, column=2, sticky="NSEW", padx=20)
-
-        self.btn_exporter = tk.Button(self.Windows, text="Exporter en CSV", command=self.export_csv,background="red", fg="white")
-        self.btn_exporter.grid(row=4, column=2, sticky="NSEW", padx=20)
-
-
-        self.btn_filtrer = tk.Button(self.Windows, text="Filtrer par catégorie", command=self.filter_categories,background="red", fg="white")
-        self.btn_filtrer.grid(row=5, column=2, sticky="NSEW", padx=20)
-
-        self.btn_reset = tk.Button(self.Windows, text="Réinitialiser les filtres", command=self.reinitialiser_les_filtres,background="red", fg="white")
-        self.btn_reset.grid(row=6, column=2, sticky="NSEW", padx=20)
+        if nom and description and prix and quantite and id_categorie:
+            try:
+                modifier_produit(self.id_produit, nom, description, float(prix), int(quantite), id_categorie)
+                self.parent.charger_produits()
+                self.destroy()
+                messagebox.showinfo("Succès", "Le produit a été modifié avec succès")
+            except ValueError:
+                messagebox.showerror("Erreur", "Veuillez entrer des valeurs valides pour le prix et la quantité")
+        else:
+            messagebox.showerror("Erreur", "Veuillez remplir tous les champs")
 
 
-        tk.Label(self.Windows, text="Nom").grid(row=1, column=0)
-        self.name_entry = tk.Entry(self.Windows)
-        self.name_entry.grid(row=1, column=1, sticky="NSEW", pady=5)
 
-        tk.Label(self.Windows, text="Description").grid(row=2, column=0)
-        self.description_entry = tk.Entry(self.Windows, width=30)
-        self.description_entry.grid(row=2, column=1, sticky="NSEW", pady=5)
-
-        tk.Label(self.Windows, text="Prix").grid(row=3, column=0)
-        self.price_entry = tk.Entry(self.Windows)
-        self.price_entry.grid(row=3, column=1, sticky="NSEW", pady=5)
-
-        tk.Label(self.Windows, text="Quantite").grid(row=4, column=0)
-        self.quantity_entry = tk.Entry(self.Windows)
-        self.quantity_entry.grid(row=4, column=1, sticky="NSEW", pady=5)
-
-        tk.Label(self.Windows, text="Categorie").grid(row=5, column=0)
-        self.categorie_entry = ttk.Combobox(self.Windows, values=self.liste_categories())
-        self.categorie_entry.grid(row=5, column=1, sticky="NSEW", pady=5)
-
-        self.Windows.mainloop()
-
-Boutique()
+if __name__ == "__main__":
+    app = GestionStockApp()
+    app.mainloop()
